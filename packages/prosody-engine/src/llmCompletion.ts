@@ -290,7 +290,7 @@ export function createMockLLMProvider(): LLMProvider {
 
       // Parse target syllables from prompt
       const sylMatch = prompt.match(/exactly (\d+) syllables/);
-      const targetSyl = sylMatch ? parseInt(sylMatch[1]!, 10) : 5;
+      const targetSyl = sylMatch?.[1] ? parseInt(sylMatch[1], 10) : 5;
 
       // Parse rhyme word from prompt
       const rhymeMatch = prompt.match(/rhymes with "(\w+)"/);

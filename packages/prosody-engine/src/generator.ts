@@ -42,9 +42,10 @@ export type GeneratorOptions = {
   maxCandidates?: number;
   softPenalties?: boolean;
   diversityBonus?: number; // bonus for using different words
+  seed?: number; // for deterministic results
 };
 
-const DEFAULT_OPTIONS: Required<GeneratorOptions> = {
+const DEFAULT_OPTIONS: Required<Omit<GeneratorOptions, "seed">> = {
   beamWidth: 100,
   maxCandidates: 10,
   softPenalties: true,
@@ -52,12 +53,26 @@ const DEFAULT_OPTIONS: Required<GeneratorOptions> = {
 };
 
 /**
- * Shuffle array in place (Fisher-Yates)
+ * Simple seeded PRNG (mulberry32)
+ * Returns a function that generates random numbers in [0, 1)
  */
-function shuffle<T>(arr: T[]): T[] {
+function createSeededRandom(seed: number): () => number {
+  return () => {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Shuffle array (Fisher-Yates)
+ */
+function shuffle<T>(arr: T[], random: () => number = Math.random): T[] {
   const result = [...arr];
   for (let i = result.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(random() * (i + 1));
     [result[i], result[j]] = [result[j]!, result[i]!];
   }
   return result;
@@ -170,6 +185,7 @@ export function generateCandidates(
   options: GeneratorOptions = {}
 ): CandidateLine[] {
   const opts = { ...DEFAULT_OPTIONS, ...options };
+  const random = opts.seed !== undefined ? createSeededRandom(opts.seed) : Math.random;
   const allWords = getAllWords();
 
   // If we have a target rhyme, get words that rhyme
@@ -211,7 +227,7 @@ export function generateCandidates(
           : allWords.filter((w) => w.syllableCount <= remainingSyllables);
 
       // Shuffle to add variety
-      candidateWords = shuffle(candidateWords);
+      candidateWords = shuffle(candidateWords, random);
 
       // If we need a rhyme and are close to target, prioritize rhyming words
       const shouldPrioritizeRhyme =
@@ -219,7 +235,8 @@ export function generateCandidates(
 
       let wordsToTry = shouldPrioritizeRhyme
         ? shuffle(
-            rhymingWords.filter((w) => w.syllableCount <= remainingSyllables)
+            rhymingWords.filter((w) => w.syllableCount <= remainingSyllables),
+            random
           )
         : candidateWords;
 
